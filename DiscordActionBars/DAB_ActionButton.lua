@@ -1,3 +1,7 @@
+print("DAB_ActionButton begin")
+
+local libspell = DiscordActionBars.api.libspell
+
 function DAB_ActionButton_Collapse(button, bar)
 	if (button.collapsed) then return; end
 	if ((not bar) or bar=="F") then return; end
@@ -946,6 +950,67 @@ function DAB_ActionButton_UpdateCooldown(id)
 	local action = button:GetActionID();
 	local cooldown = getglobal(button:GetName().."_Cooldown");
 	local start, duration, enable = GetActionCooldown(action);
+
+	-- Taken from pfUI.
+	local macro = GetActionText(id)
+	if macro then
+		local name, body, _
+		for slot = 1, 36 do
+			name, _, body = GetMacroInfo(slot)
+			if name == macro then
+				break
+			end
+		end
+
+		if name and body then
+			local gfind = string.gmatch or string.gfind
+			local match
+
+			for line in gfind(body, "[^%\n]+") do
+				_, _, match = string.find(line, '^#showtooltip (.+)')
+
+				if not match then
+					-- add support to specify custom tooltips via:
+					--  /run --showtooltip SPELLNAME
+					_, _, match = string.find(line, '%-%-showtooltip (.+)')
+				end
+
+				if not match then
+					_, _, match = string.find(line, 'CastSpellByName%(%"(.+)%"%)')
+				end
+
+				-- Match "/cast [@mouseover] Holy Light; Holy Light".
+				if not match then
+					_, _, match = string.find(line, '^/cast %[.+%] (.+)')
+					-- Split the line at the first ";".
+					if match then
+						match = string.gsub(match, ";.*", "")
+					end
+				end
+
+				if not match then
+					_, _, match = string.find(line, '^/cast (.+)')
+				end
+
+				if not match then
+					_, _, match = string.find(line, '^/pfcast (.+)')
+				end
+
+				if not match then
+					_, _, match = string.find(line, '^/pfmouse (.+)')
+				end
+
+				if match then
+					local _, _, spell, rank = string.find(match, '(.+)%((.+)%)')
+					spell = spell or match
+					local spellslot, booktype = libspell.GetSpellIndex(spell, rank)
+					start, duration, enable = GetSpellCooldown(spellslot, booktype)
+					break
+				end
+			end
+		end
+	end
+
 	CooldownFrame_SetTimer(cooldown, start, duration, enable);
 	if (not DAB_SHOWING_IDS) then
 		getglobal(button:GetName().."_CooldownCount"):SetText("");
